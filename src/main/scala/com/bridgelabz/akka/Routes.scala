@@ -13,9 +13,12 @@ import akka.http.scaladsl.server.{Directives, ExceptionHandler, Route}
 import com.bridgelabz.akka.database.Config.sendRequest
 import com.bridgelabz.akka.database.MongoUtils.getAllUsers
 import com.bridgelabz.akka.models.{User, UserJsonSupport}
+import com.thoughtworks.xstream.XStream
+import com.thoughtworks.xstream.io.xml.DomDriver
 import org.mongodb.scala.Completed
 
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 object Routes extends App with Directives with UserJsonSupport {
@@ -53,6 +56,12 @@ object Routes extends App with Directives with UserJsonSupport {
             path("getJson") {
               val greetingSeqFuture: Future[Seq[User]] = getAllUsers
               complete(greetingSeqFuture)
+            }, path("getXML") {
+              val greetingSeqFuture: Future[Seq[User]] = getAllUsers
+              val data = Await.result(greetingSeqFuture,10.seconds)
+              val xStream = new XStream(new DomDriver())
+              val xml = xStream.toXML(data)
+              complete(xml)
             }
           )
         } ~ post {
