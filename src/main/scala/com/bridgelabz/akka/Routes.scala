@@ -23,10 +23,13 @@ import scala.util.{Failure, Success}
 
 object Routes extends App with Directives with UserJsonSupport {
 
+  //host and port numbers set via respective environment variables
   val host = System.getenv("Host")
   val port = System.getenv("Port").toInt
 
+  //maintains a pool of actors
   implicit val system: ActorSystem = ActorSystem("AS")
+  //maintains and executes actor system
   implicit val executor: ExecutionContext = system.dispatcher
 
   // Handling Arithmetic and Null Pointer Exceptions
@@ -53,25 +56,27 @@ object Routes extends App with Directives with UserJsonSupport {
       concat(
         get {
           concat(
+            // GET "/getJson" path to fetch user objects in JSON format
             path("getJson") {
+              //optional "name" parameter to GET byName
               parameters("name".?){(name: Option[String])=>{
                 if(name.isDefined)
                   complete(getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get)))))
                 else
                   complete(getAllUsers)
               }}
-            }, path("getXML") {
-
+            },
+            // GET "/getJson" path to fetch user objects in XML format
+            path("getXML") {
               val greetingSeqFuture: Future[Seq[User]] = getAllUsers
+              //optional "name" parameter to GET byName
               parameters("name".?){(name: Option[String])=>{
-
                 var finalDisplayResult: Future[Seq[User]] = null
                 if(name.isDefined)
                   finalDisplayResult = getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get))))
                 else {
                   finalDisplayResult = getAllUsers
                 }
-
                 val data = Await.result(finalDisplayResult,10.seconds)
                 val xStream = new XStream(new DomDriver())
                 val xml = xStream.toXML(data)
@@ -80,6 +85,7 @@ object Routes extends App with Directives with UserJsonSupport {
             }
           )
         } ~ post {
+          // POST data to server via path name mentioned
           path("message") {
             entity(as[User]) {
               emp =>
