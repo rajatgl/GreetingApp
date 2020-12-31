@@ -23,8 +23,8 @@ import scala.util.{Failure, Success}
 
 object Routes extends App with Directives with UserJsonSupport {
 
-  val host = "localhost"
-  val port = 9000
+  val host = System.getenv("Host")
+  val port = System.getenv("Port").toInt
 
   implicit val system: ActorSystem = ActorSystem("AS")
   implicit val executor: ExecutionContext = system.dispatcher
@@ -54,14 +54,29 @@ object Routes extends App with Directives with UserJsonSupport {
         get {
           concat(
             path("getJson") {
-              val greetingSeqFuture: Future[Seq[User]] = getAllUsers
-              complete(greetingSeqFuture)
+              parameters("name".?){(name: Option[String])=>{
+                if(name.isDefined)
+                  complete(getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get)))))
+                else
+                  complete(getAllUsers)
+              }}
             }, path("getXML") {
+
               val greetingSeqFuture: Future[Seq[User]] = getAllUsers
-              val data = Await.result(greetingSeqFuture,10.seconds)
-              val xStream = new XStream(new DomDriver())
-              val xml = xStream.toXML(data)
-              complete(xml)
+              parameters("name".?){(name: Option[String])=>{
+
+                var finalDisplayResult: Future[Seq[User]] = null
+                if(name.isDefined)
+                  finalDisplayResult = getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get))))
+                else {
+                  finalDisplayResult = getAllUsers
+                }
+
+                val data = Await.result(finalDisplayResult,10.seconds)
+                val xStream = new XStream(new DomDriver())
+                val xml = xStream.toXML(data)
+                complete(xml)
+              }}
             }
           )
         } ~ post {

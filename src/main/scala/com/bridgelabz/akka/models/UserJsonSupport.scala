@@ -8,6 +8,7 @@ import spray.json.{DefaultJsonProtocol, RootJsonFormat}
  * Class: UserJsonSupport.scala
  * Author: Rajat G.L.
  */
+//For Marshalling the data
 trait UserJsonSupport extends DefaultJsonProtocol with SprayJsonSupport {
   implicit val PortfolioFormats: RootJsonFormat[User] = jsonFormat2(User)
 }
