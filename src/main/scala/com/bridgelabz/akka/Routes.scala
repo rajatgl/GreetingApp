@@ -15,6 +15,7 @@ import com.bridgelabz.akka.database.MongoUtils.getAllUsers
 import com.bridgelabz.akka.models.{User, UserJsonSupport}
 import com.thoughtworks.xstream.XStream
 import com.thoughtworks.xstream.io.xml.DomDriver
+import com.typesafe.scalalogging.Logger
 import org.mongodb.scala.Completed
 
 import scala.concurrent.duration.DurationInt
@@ -23,6 +24,8 @@ import scala.util.{Failure, Success}
 
 object Routes extends App with Directives with UserJsonSupport {
 
+  val logger = Logger("Root")
+  logger.info("Route object accessed")
   //host and port numbers set via respective environment variables
   val host = System.getenv("Host")
   val port = System.getenv("Port").toInt
@@ -51,6 +54,10 @@ object Routes extends App with Directives with UserJsonSupport {
       }
   }
 
+  /**
+   * handles all the get post requests to appropriate path endings
+   * @return
+   */
   def route : Route =
     handleExceptions(exceptionHandler){
       concat(
@@ -60,10 +67,13 @@ object Routes extends App with Directives with UserJsonSupport {
             path("getJson") {
               //optional "name" parameter to GET byName
               parameters("name".?){(name: Option[String])=>{
-                if(name.isDefined)
+                if(name.isDefined) {
+                  logger.debug("JSON data of specified user provided")
                   complete(getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get)))))
-                else
+                } else {
+                  logger.debug("JSON data of all users provided")
                   complete(getAllUsers)
+                }
               }}
             },
             // GET "/getJson" path to fetch user objects in XML format
@@ -72,9 +82,12 @@ object Routes extends App with Directives with UserJsonSupport {
               //optional "name" parameter to GET byName
               parameters("name".?){(name: Option[String])=>{
                 var finalDisplayResult: Future[Seq[User]] = null
-                if(name.isDefined)
+                if(name.isDefined) {
+                  logger.debug("XML data of specified user provided")
                   finalDisplayResult = getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get))))
+                }
                 else {
+                  logger.debug("XML data of all users provided")
                   finalDisplayResult = getAllUsers
                 }
                 val data = Await.result(finalDisplayResult,10.seconds)
@@ -91,17 +104,17 @@ object Routes extends App with Directives with UserJsonSupport {
               emp =>
                 val request: Future[Completed] = sendRequest(emp)
                 onComplete(request) {
-                  _ => complete("Data Inserted!")
+                  _ => logger.debug("Data Insertion Complete");complete("Data Inserted!")
                 }
             }
           }
         }
       )
     }
-
+  //server binding
   val binder = Http().newServerAt(host,port).bind(route)
   binder.onComplete {
-    case Success(serverBinding) => println(println(s"Listening to ${serverBinding.localAddress}"))
-    case Failure(error) => println(s"Error : ${error.getMessage}")
+    case Success(serverBinding) => logger.debug("Server Binding Successful"); println(println(s"Listening to ${serverBinding.localAddress}"))
+    case Failure(error) => logger.debug("Server Binding Failed"); println(s"Error : ${error.getMessage}")
   }
 }

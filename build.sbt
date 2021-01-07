@@ -16,3 +16,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.32",
   "com.typesafe.akka" %% "akka-http-testkit" % "10.2.2"
 )
+libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.14.0"
+libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.14.0"
+libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3" % Runtime
+libraryDependencies += "ch.qos.logback" % "logback-core" % "1.2.3"
