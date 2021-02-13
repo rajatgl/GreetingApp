@@ -13,3 +13,7 @@
 ## Running Instructions
 
 > Run this app by heading to __Routes.scala__ and running it (Routes is an object defined, you may run it directly).
+
+## Plugins Included
+
+> scoverage - tests code coverage of test cases
