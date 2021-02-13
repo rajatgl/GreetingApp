@@ -11,10 +11,10 @@ libraryDependencies += "com.typesafe.akka" %% "akka-http-spray-json" % "10.2.2"
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
 libraryDependencies += "com.thoughtworks.xstream" % "xstream" % "1.4.11.1"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.2" % "test"
-libraryDependencies += "org.mockito" % "mockito-all" % "1.10.19" % Test
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream-testkit" % "2.5.32",
-  "com.typesafe.akka" %% "akka-http-testkit" % "10.2.2"
+  "com.typesafe.akka" %% "akka-http-testkit" % "10.2.2",
+  "org.scalatestplus" %% "mockito-3-4" % "3.2.3.0" % "test",
 )
 libraryDependencies += "org.apache.logging.log4j" % "log4j-api" % "2.14.0"
 libraryDependencies += "org.apache.logging.log4j" % "log4j-core" % "2.14.0"

@@ -7,10 +7,11 @@ package com.bridgelabz.akka
  */
 
 import akka.actor.ActorSystem
+import akka.http.javadsl.model.StatusCodes
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpResponse
 import akka.http.scaladsl.server.{Directives, ExceptionHandler, Route}
-import com.bridgelabz.akka.database.Config.sendRequest
+import com.bridgelabz.akka.database.Config
 import com.bridgelabz.akka.database.MongoUtils.getAllUsers
 import com.bridgelabz.akka.models.{User, UserJsonSupport}
 import com.thoughtworks.xstream.XStream
@@ -24,6 +25,7 @@ import scala.util.{Failure, Success}
 
 object Routes extends App with Directives with UserJsonSupport {
 
+  // $COVERAGE-OFF$
   val logger = Logger("Root")
   logger.info("Route object accessed")
   //host and port numbers set via respective environment variables
@@ -37,84 +39,83 @@ object Routes extends App with Directives with UserJsonSupport {
 
   // Handling Arithmetic and Null Pointer Exceptions
   val exceptionHandler = ExceptionHandler {
-    case _: ArithmeticException =>
+    case aex: ArithmeticException =>
       extractUri { uri =>
-        println(s"Request to $uri could not be handled normally")
-        complete(HttpResponse(400, entity = "Number could not be parsed. Is there a text were a number should be?"))
+        logger.error(s"Request to $uri could not be handled normally: ${aex.getMessage}")
+        complete(HttpResponse(StatusCodes.BAD_REQUEST.intValue(), entity = "Number could not be parsed. Is there a text were a number should be?"))
       }
-    case _: NullPointerException =>
+    case nex: NullPointerException =>
       extractUri { uri =>
-        println(s"Request to $uri could not be handled normally")
-        complete(HttpResponse(402, entity = "Null value found while parsing the data. Contact the admin."))
+        logger.error(s"Request to $uri could not be handled normally: ${nex.getMessage}")
+        complete(HttpResponse(StatusCodes.BAD_REQUEST.intValue(), entity = "Null value found while parsing the data. Contact the admin."))
       }
-    case _: Exception =>
+    case ex: Exception =>
       extractUri { uri =>
-        println(s"Request to $uri could not be handled normally")
-        complete(HttpResponse(408, entity = "Some error occured. Please try again later."))
+        logger.error(s"Request to $uri could not be handled normally: ${ex.getMessage}")
+        complete(HttpResponse(StatusCodes.BAD_REQUEST.intValue(), entity = "Some error occured. Please try again later."))
       }
   }
 
+  // $COVERAGE-ON$
   /**
    * handles all the get post requests to appropriate path endings
    * @return
    */
-  def route : Route =
-    handleExceptions(exceptionHandler){
-      concat(
-        get {
-          concat(
-            // GET "/getJson" path to fetch user objects in JSON format
-            path("getJson") {
-              //optional "name" parameter to GET byName
-              parameters("name".?){(name: Option[String])=>{
-                if(name.isDefined) {
-                  logger.debug("JSON data of specified user provided")
-                  complete(getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get)))))
-                } else {
-                  logger.debug("JSON data of all users provided")
-                  complete(getAllUsers)
-                }
-              }}
-            },
-            // GET "/getJson" path to fetch user objects in XML format
-            path("getXML") {
-              val greetingSeqFuture: Future[Seq[User]] = getAllUsers
-              //optional "name" parameter to GET byName
-              parameters("name".?){(name: Option[String])=>{
-                var finalDisplayResult: Future[Seq[User]] = null
-                if(name.isDefined) {
-                  logger.debug("XML data of specified user provided")
-                  finalDisplayResult = getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get))))
-                }
-                else {
-                  logger.debug("XML data of all users provided")
-                  finalDisplayResult = getAllUsers
-                }
-                val data = Await.result(finalDisplayResult,10.seconds)
-                val xStream = new XStream(new DomDriver())
-                val xml = xStream.toXML(data)
-                complete(xml)
-              }}
-            }
-          )
-        } ~ post {
-          // POST data to server via path name mentioned
-          path("message") {
-            entity(as[User]) {
-              emp =>
-                val request: Future[Completed] = sendRequest(emp)
-                onComplete(request) {
-                  _ => logger.debug("Data Insertion Complete");complete("Data Inserted!")
-                }
+  def route(config: Config, executorContext: ExecutionContext, actorSystem: ActorSystem): Route = {
+    implicit val system: ActorSystem = actorSystem; implicit val executor: ExecutionContext = executorContext
+    handleExceptions(exceptionHandler) {
+      concat(get {concat(
+          path("getJson") {
+            //optional "name" parameter to GET byName
+            parameters("name".?) { (name: Option[String]) => {
+              if (name.isDefined) {
+                logger.debug("JSON data of specified user provided")
+                complete(getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get)))))
+              } else {
+                logger.debug("JSON data of all users provided")
+                complete(getAllUsers)
+              }
+            }}
+          }, path("getXML") {
+            parameters("name".?) { (name: Option[String]) => {
+              var finalDisplayResult: Future[Seq[User]] = Future(Seq())
+              if (name.isDefined) {
+                logger.debug("XML data of specified user provided")
+                finalDisplayResult = getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get))))
+              }
+              else {
+                logger.debug("XML data of all users provided")
+                finalDisplayResult = getAllUsers
+              }
+              val data = Await.result(finalDisplayResult, 10.seconds)
+              val xStream = new XStream(new DomDriver())
+              val xml = xStream.toXML(data)
+              complete(xml)
+            }}
+          }
+        )
+      } ~ post {
+        path("message") {
+          entity(as[User]) { emp =>
+            val request: Future[Completed] = config.sendRequest(emp)
+            onComplete(request) {
+              case Success(_) => logger.debug("Data Insertion Complete")
+                complete("Data Inserted!")
+              case _ => complete(StatusCodes.BAD_REQUEST.intValue() -> "Data is invalid.")
             }
           }
         }
-      )
+      })
     }
+  }
+
+  // $COVERAGE-OFF$
   //server binding
-  val binder = Http().newServerAt(host,port).bind(route)
+  val config: Config = new Config()
+  val binder = Http().newServerAt(host, port).bind(route(config, executor, system))
+
   binder.onComplete {
-    case Success(serverBinding) => logger.debug("Server Binding Successful"); println(println(s"Listening to ${serverBinding.localAddress}"))
-    case Failure(error) => logger.debug("Server Binding Failed"); println(s"Error : ${error.getMessage}")
+    case Success(serverBinding) => logger.debug("Server Binding Successful")
+    case Failure(error) => logger.debug(s"Server Binding Failed: ${error.getMessage}")
   }
 }

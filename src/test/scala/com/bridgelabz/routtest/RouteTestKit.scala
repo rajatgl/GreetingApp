@@ -1,44 +1,124 @@
 package com.bridgelabz.routtest
 
-import org.scalatest.matchers.must.Matchers
-import org.scalatest.wordspec.AnyWordSpec
-import com.bridgelabz.akka.Routes
+import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.util.ByteString
+import com.bridgelabz.akka.Routes
+import com.bridgelabz.akka.database.{Config, MongoUtils}
+import com.bridgelabz.akka.models.User
+import org.mockito.Mockito.when
+import org.mongodb.scala.Completed
+import org.scalatest.matchers.must.Matchers
+import org.scalatest.wordspec.AnyWordSpec
+import org.scalatestplus.mockito.MockitoSugar
 
-class RouteTestKit extends AnyWordSpec with Matchers with ScalatestRouteTest {
+import scala.concurrent.{ExecutionContext, Future}
+import scala.util.{Failure, Success}
+
+class RouteTestKit extends AnyWordSpec with Matchers with ScalatestRouteTest with MockitoSugar {
 
   "RouteTest" should {
     "check the status code for GET requests to the getJson path" in {
 
-      Get("/getJson") ~> Routes.route ~> check {
+      val mockConfig: Config = mock[Config]
+      implicit val system: ActorSystem = ActorSystem("AS")
+      implicit val executor: ExecutionContext = system.dispatcher
+
+      Get("/getJson") ~> Routes.route(mockConfig, executor, system) ~> check {
         response.status.equals(StatusCodes.Accepted)
       }
     }
     "check the status code for GET requests to the getXML path" in {
-      Get("/getXML") ~> Routes.route ~> check {
+
+      val mockConfig: Config = mock[Config]
+      implicit val system: ActorSystem = ActorSystem("AS")
+      implicit val executor: ExecutionContext = system.dispatcher
+
+      Get("/getXML") ~> Routes.route(mockConfig, executor, system) ~> check {
         response.status.equals(StatusCodes.Accepted)
       }
     }
     "check the status code for GET requests with NAME parameter to the getJson path" in {
-      Get("/getJson?name=Rajat") ~> Routes.route ~> check {
+
+      val mockConfig: Config = mock[Config]
+      implicit val system: ActorSystem = ActorSystem("AS")
+      implicit val executor: ExecutionContext = system.dispatcher
+
+      Get("/getJson?name=Rajat") ~> Routes.route(mockConfig, executor, system) ~> check {
         response.status.equals(StatusCodes.Accepted)
       }
     }
     "check the status code for GET requests with NAME parameter to the getXML path" in {
-      Get("/getXML?name=Rajat") ~> Routes.route ~> check {
+
+      val mockConfig: Config = mock[Config]
+      implicit val system: ActorSystem = ActorSystem("AS")
+      implicit val executor: ExecutionContext = system.dispatcher
+
+      Get("/getXML?name=Rajat") ~> Routes.route(mockConfig, executor, system) ~> check {
         response.status.equals(StatusCodes.Accepted)
       }
     }
     "check the status code for POST requests to the message path with valid data" in {
-      Post("/message", "{greeting: Hey, name: TestKit}") ~> Routes.route ~> check {
+
+      val mockConfig: Config = mock[Config]
+      implicit val system: ActorSystem = ActorSystem("AS")
+      implicit val executor: ExecutionContext = system.dispatcher
+
+      val user = User("Tester", "Hello")
+      when(mockConfig.sendRequest(user)).thenReturn(Future.successful(Completed.apply()))
+
+      val jsonRequest = ByteString(
+        s"""
+           {
+             "name": "Tester",
+             "greeting": "Hello"
+           }
+        """.stripMargin
+      )
+
+      Post("/message", jsonRequest) ~> Routes.route(mockConfig, executor, system) ~> check {
         response.status.equals(StatusCodes.Accepted)
       }
     }
     "check the status code for POST requests to the message path with invalid data" in {
-      Post("/message", "{}") ~> Routes.route ~> check {
+
+      val user = User("Tester", "Hello")
+      val mockConfig: Config = mock[Config]
+      implicit val system: ActorSystem = ActorSystem("AS")
+      implicit val executor: ExecutionContext = system.dispatcher
+
+      when(mockConfig.sendRequest(user)).thenReturn(Future.failed(new Throwable()))
+
+      val jsonRequest = ByteString(
+        s"""
+           {
+             "name": "Tester",
+             "greeting": "Hello"
+           }
+        """.stripMargin
+      )
+
+      Post("/message", jsonRequest) ~> Routes.route(mockConfig, executor, system) ~> check {
         !response.status.equals(StatusCodes.Accepted)
       }
+    }
+
+    "return a list of users with a given name" in {
+
+      val future = MongoUtils.getAllUsers("hello")
+      future.onComplete{
+        case Success(_) => assert(true)
+        case Failure(exception) => assert(false)
+      }
+    }
+
+    "config should save and delete a dummy chat with no errors" in {
+
+      val user = User("TesterRANDOM", "Hello")
+      val config = new Config
+      config.sendRequest(user)
+      config.deleteRequest(user)
     }
   }
 }
