@@ -7,18 +7,13 @@ package com.bridgelabz.akka.database
  */
 import com.bridgelabz.akka.constants.Constants
 import com.bridgelabz.akka.models.User
+import com.typesafe.scalalogging.Logger
 
 import scala.concurrent.Future
 import org.mongodb.scala.{Completed, Document, MongoClient, MongoCollection, MongoDatabase, MongoExecutionTimeoutException, result}
-import com.typesafe.scalalogging.LazyLogging
 import org.mongodb.scala.model.Filters.equal
 
-class Config extends LazyLogging {
-
-  val mongoClient: MongoClient = MongoClient()
-  val database: MongoDatabase = mongoClient.getDatabase(Constants.databaseName)
-  val collection: MongoCollection[Document] = database.getCollection(Constants.collectionName)
-
+class Config {
   /**
    *
    * @param user : Data to be added into database
@@ -26,13 +21,16 @@ class Config extends LazyLogging {
    */
   def sendRequest(user: User) : Future[Completed] = {
 
+    val logger: Logger = Logger("Config")
     logger.info("Sending request with object: " + user)
     val doc: Document = Document("greeting" -> user.greeting, "name" -> user.name)
-    collection.insertOne(doc).toFuture()
+    (new MongoConstants).collection.insertOne(doc).toFuture()
   }
 
   def deleteRequest(user: User): Future[result.DeleteResult] = {
 
-    collection.deleteOne(equal("name", user.name)).toFuture()
+    val logger: Logger = Logger("Config")
+    logger.warn("Deleting request with object: " + user)
+    (new MongoConstants).collection.deleteOne(equal("name", user.name)).toFuture()
   }
 }

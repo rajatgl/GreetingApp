@@ -1,7 +1,7 @@
 package com.bridgelabz.routtest
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.{HttpEntity, HttpMethods, HttpRequest, MediaTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.util.ByteString
 import com.bridgelabz.akka.Routes
@@ -70,14 +70,20 @@ class RouteTestKit extends AnyWordSpec with Matchers with ScalatestRouteTest wit
 
       val jsonRequest = ByteString(
         s"""
-           {
-             "name": "Tester",
-             "greeting": "Hello"
-           }
+            {
+              "name":"Tester",
+              "greeting": "Hello"
+            }
         """.stripMargin
       )
 
-      Post("/message", jsonRequest) ~> Routes.route(mockConfig, executor, system) ~> check {
+      val postRequest = HttpRequest(
+        HttpMethods.POST,
+        uri = "/message",
+        entity = HttpEntity(MediaTypes.`application/json`, jsonRequest)
+      )
+
+      postRequest ~> Routes.route(mockConfig, executor, system) ~> check {
         response.status.equals(StatusCodes.Accepted)
       }
     }
@@ -92,14 +98,20 @@ class RouteTestKit extends AnyWordSpec with Matchers with ScalatestRouteTest wit
 
       val jsonRequest = ByteString(
         s"""
-           {
-             "name": "Tester",
-             "greeting": "Hello"
-           }
+            {
+              "name":"Tester",
+              "greeting": "Hello"
+            }
         """.stripMargin
       )
 
-      Post("/message", jsonRequest) ~> Routes.route(mockConfig, executor, system) ~> check {
+      val postRequest = HttpRequest(
+        HttpMethods.POST,
+        uri = "/message",
+        entity = HttpEntity(MediaTypes.`application/json`, jsonRequest)
+      )
+
+      postRequest ~> Routes.route(mockConfig, executor, system) ~> check {
         !response.status.equals(StatusCodes.Accepted)
       }
     }

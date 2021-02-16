@@ -26,8 +26,7 @@ import scala.util.{Failure, Success}
 object Routes extends App with Directives with UserJsonSupport {
 
   // $COVERAGE-OFF$
-  val logger = Logger("Root")
-  logger.info("Route object accessed")
+  val logger = Logger("Route-Server")
   //host and port numbers set via respective environment variables
   val host = System.getenv("Host")
   val port = System.getenv("Port").toInt
@@ -59,53 +58,76 @@ object Routes extends App with Directives with UserJsonSupport {
   // $COVERAGE-ON$
   /**
    * handles all the get post requests to appropriate path endings
+   *
    * @return
    */
-  def route(config: Config, executorContext: ExecutionContext, actorSystem: ActorSystem): Route = {
-    implicit val system: ActorSystem = actorSystem; implicit val executor: ExecutionContext = executorContext
-    handleExceptions(exceptionHandler) {
-      concat(get {concat(
-          path("getJson") {
-            //optional "name" parameter to GET byName
-            parameters("name".?) { (name: Option[String]) => {
-              if (name.isDefined) {
-                logger.debug("JSON data of specified user provided")
-                complete(getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get)))))
-              } else {
-                logger.debug("JSON data of all users provided")
-                complete(getAllUsers)
-              }
-            }}
-          }, path("getXML") {
-            parameters("name".?) { (name: Option[String]) => {
-              var finalDisplayResult: Future[Seq[User]] = Future(Seq())
-              if (name.isDefined) {
-                logger.debug("XML data of specified user provided")
-                finalDisplayResult = getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get))))
-              }
-              else {
-                logger.debug("XML data of all users provided")
-                finalDisplayResult = getAllUsers
-              }
-              val data = Await.result(finalDisplayResult, 10.seconds)
-              val xStream = new XStream(new DomDriver())
-              val xml = xStream.toXML(data)
-              complete(xml)
-            }}
-          }
-        )
-      } ~ post {
-        path("message") {
-          entity(as[User]) { emp =>
-            val request: Future[Completed] = config.sendRequest(emp)
-            onComplete(request) {
-              case Success(_) => logger.debug("Data Insertion Complete")
-                complete("Data Inserted!")
-              case _ => complete(StatusCodes.BAD_REQUEST.intValue() -> "Data is invalid.")
+  def getRoute(executorContext: ExecutionContext, actorSystem: ActorSystem): Route = {
+    val logger = Logger("Route")
+    implicit val system: ActorSystem = actorSystem
+    implicit val executor: ExecutionContext = executorContext
+
+    get {
+      concat(
+        path("getJson") {
+          //optional "name" parameter to GET byName
+          parameters("name".?) { (name: Option[String]) => {
+            if (name.isDefined) {
+              logger.info("JSON data of specified user provided")
+              complete(getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get)))))
+            } else {
+              logger.info("JSON data of all users provided")
+              complete(getAllUsers)
             }
           }
+          }
+        }, path("getXML") {
+          parameters("name".?) { (name: Option[String]) => {
+            var finalDisplayResult: Future[Seq[User]] = Future(Seq())
+            if (name.isDefined) {
+              logger.debug("XML data of specified user provided")
+              finalDisplayResult = getAllUsers(name.get).flatMap(sequence => Future(sequence.filter(user => user.name.equalsIgnoreCase(name.get))))
+            }
+            else {
+              logger.debug("XML data of all users provided")
+              finalDisplayResult = getAllUsers
+            }
+            val data = Await.result(finalDisplayResult, 10.seconds)
+            val xStream = new XStream(new DomDriver())
+            val xml = xStream.toXML(data)
+            complete(xml)
+          }
+          }
         }
-      })
+      )
+    }
+  }
+
+  def postRoute(config: Config, executorContext: ExecutionContext, actorSystem: ActorSystem): Route = {
+
+    val logger = Logger("Route-Post")
+    implicit val system: ActorSystem = actorSystem
+    implicit val executor: ExecutionContext = executorContext
+    post {
+      path("message") {
+        entity(as[User]) { emp =>
+          val request: Future[Completed] = config.sendRequest(emp)
+          onComplete(request) {
+            case Success(_) => logger.debug("Data Insertion Complete")
+              complete("Data Inserted!")
+            case _ => complete(StatusCodes.BAD_REQUEST.intValue() -> "Data is invalid.")
+          }
+        }
+      }
+    }
+  }
+
+  def route(config: Config, executorContext: ExecutionContext, actorSystem: ActorSystem): Route = {
+
+    handleExceptions(exceptionHandler) {
+      concat(
+        getRoute(executorContext, actorSystem),
+        postRoute(config, executorContext, actorSystem)
+      )
     }
   }
 
@@ -115,7 +137,7 @@ object Routes extends App with Directives with UserJsonSupport {
   val binder = Http().newServerAt(host, port).bind(route(config, executor, system))
 
   binder.onComplete {
-    case Success(serverBinding) => logger.debug("Server Binding Successful")
+    case Success(_) => logger.debug("Server Binding Successful")
     case Failure(error) => logger.debug(s"Server Binding Failed: ${error.getMessage}")
   }
 }
